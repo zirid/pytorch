@@ -9,8 +9,6 @@ namespace torch {
 namespace jit {
 namespace {
 
-using Var = SymbolicVariable;
-
 using namespace torch::autograd;
 
 void testIValue() {
