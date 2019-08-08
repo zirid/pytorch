@@ -412,7 +412,7 @@ void testCustomFusionNestedBlocks() {
       [](Node* n) { return n->kind() == aten::mul; },
       Symbol::fromQualString("prim::FusionGroup"));
 
-  // // Could be done in more efficient ways, but this is only a test.
+  // Could be done in more efficient ways, but this is only a test.
   std::function<bool(const Block*, Symbol)> dfs = [&](const Block* b, Symbol s) {
       for (auto node : b->nodes()) {
           if (node->kind() == s)
