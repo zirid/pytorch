@@ -10,6 +10,8 @@ cmake_policy(SET CMP0025 NEW)
 # ---[ Project and semantic versioning.
 project(Caffe2 CXX C)
 
+set(CMAKE_VERBOSE_MAKEFILE ON CACHE BOOL "ON")
+
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
   set(LINUX TRUE)
 else()
@@ -201,6 +203,10 @@ if (MSVC)
     if(${flag_var} MATCHES "/INCREMENTAL" AND NOT ${flag_var} MATCHES "/INCREMENTAL:NO")
       string(REGEX REPLACE "/INCREMENTAL" "/INCREMENTAL:NO" ${flag_var} "${${flag_var}}")
     endif()
+    # Turn off warnings on Windows
+    string(REPLACE "/W3" "/w" ${flag_var} "${${flag_var}}")
+    # Suppress EHs is overridden by EHa warning
+    string(REPLACE "/EHs" "/EHa" ${flag_var} "${${flag_var}}")
   endforeach(flag_var)
   # Turning off USE_DISTRIBUTED on default
   set(USE_DISTRIBUTED OFF)
@@ -412,6 +418,10 @@ else()
     # /bigobj increases number of sections in .obj file, which is needed to link
     # against libaries in Python 2.7 under Windows
     set(${flag_var} "${${flag_var}} /MP /bigobj")
+    # Turn off warnings on Windows
+    string(REPLACE "/W3" "/w" ${flag_var} "${${flag_var}}")
+    # Suppress EHs is overridden by EHa warning
+    string(REPLACE "/EHs" "/EHa" ${flag_var} "${${flag_var}}")
   endforeach(flag_var)
 endif()
 
