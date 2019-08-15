@@ -124,6 +124,9 @@ def load(f, map_location=None, _extra_files=DEFAULT_EXTRA_FILES_MAP):
 
         Example: ::
 
+            import torch
+            import io
+
             torch.jit.load('scriptmodule.pt')
 
             # Load ScriptModule from io.BytesIO object
@@ -198,7 +201,6 @@ def save(m, f, _extra_files=DEFAULT_EXTRA_FILES_MAP):
 
             import torch
             import io
-
 
             class MyModule(torch.nn.Module):
                 def forward(self, x):
@@ -770,6 +772,7 @@ def trace(func,
     Example (tracing a function)::
 
         import torch
+
         def foo(x, y):
             return 2 * x + y
 
@@ -1061,6 +1064,7 @@ def script(obj, optimize=None, _frames_up=0, _rcb=None):
         Example (scripting a function)::
 
             import torch
+
             @torch.jit.script
             def foo(x, y):
                 if x.max() > y.max():
