@@ -983,16 +983,95 @@ jobs:
       PYTHON_VERSION: "3.6"
     <<: *pytorch_linux_build_defaults
 
-  
+  wip_shared_arm-v7_pytorch_linux_xenial_py3_clang5_android_ndk_r19c_build:
+    environment:
+      BUILD_ENVIRONMENT: pytorch-linux-xenial-py3-clang5-android-ndk-r19c-build-shared-arm-v7a-gradle
+      DOCKER_IMAGE: "308535385114.dkr.ecr.us-east-1.amazonaws.com/pytorch/pytorch-linux-xenial-py3-clang5-android-ndk-r19c:327"
+      PYTHON_VERSION: "3.6"
+    <<: *pytorch_linux_build_defaults
+
+  wip_shared_arm-v8_pytorch_linux_xenial_py3_clang5_android_ndk_r19c_build:
+    environment:
+      BUILD_ENVIRONMENT: pytorch-linux-xenial-py3-clang5-android-ndk-r19c-build-shared-arm-v8a-gradle
+      DOCKER_IMAGE: "308535385114.dkr.ecr.us-east-1.amazonaws.com/pytorch/pytorch-linux-xenial-py3-clang5-android-ndk-r19c:327"
+      PYTHON_VERSION: "3.6"
+    <<: *pytorch_linux_build_defaults
+
+  wip_shared_x86_pytorch_linux_xenial_py3_clang5_android_ndk_r19c_build:
+    environment:
+      BUILD_ENVIRONMENT: pytorch-linux-xenial-py3-clang5-android-ndk-r19c-build-shared-x86-gradle
+      DOCKER_IMAGE: "308535385114.dkr.ecr.us-east-1.amazonaws.com/pytorch/pytorch-linux-xenial-py3-clang5-android-ndk-r19c:327"
+      PYTHON_VERSION: "3.6"
+    <<: *pytorch_linux_build_defaults
+
+  wip_shared_x86_gradletest_pytorch_linux_xenial_py3_clang5_android_ndk_r19c_build:
+    environment:
+      BUILD_ENVIRONMENT: pytorch-linux-xenial-py3-clang5-android-ndk-r19c-build-shared-x86-gradle-gradletest
+      DOCKER_IMAGE: "308535385114.dkr.ecr.us-east-1.amazonaws.com/pytorch/pytorch-linux-xenial-py3-clang5-android-ndk-r19c:327"
+      PYTHON_VERSION: "3.6"
+    <<: *pytorch_linux_build_defaults
+
+  wip_shared_x86_64_pytorch_linux_xenial_py3_clang5_android_ndk_r19c_build:
+    environment:
+      BUILD_ENVIRONMENT: pytorch-linux-xenial-py3-clang5-android-ndk-r19c-build-shared-x86_64-gradle
+      DOCKER_IMAGE: "308535385114.dkr.ecr.us-east-1.amazonaws.com/pytorch/pytorch-linux-xenial-py3-clang5-android-ndk-r19c:327"
+      PYTHON_VERSION: "3.6"
+    <<: *pytorch_linux_build_defaults
+
+  wip_pytorch_linux_xenial_py3_clang5_android_ndk_r19c_build:
+    resource_class: large
+    machine:
+      image: ubuntu-1604:201903-01
+    environment:
+      BUILD_ENVIRONMENT: pytorch-linux-xenial-py3-clang5-android-ndk-r19c-build
+      DOCKER_IMAGE: "308535385114.dkr.ecr.us-east-1.amazonaws.com/pytorch/pytorch-linux-xenial-py3-clang5-android-ndk-r19c:327"
+      PYTHON_VERSION: "3.6"
+    steps:
+    - run:
+        name: gradle build
+        no_output_timeout: "90m"
+        command: |
+          set -eux -o pipefail
+
+          export sdk_version=sdk-tools-linux-3859397.zip
+          export android_home=/opt/android/sdk
+
+          sudo mkdir -p ${android_home}
+          curl --silent --show-error --location --fail --retry 3 --output /tmp/${sdk_version} https://dl.google.com/android/repository/${sdk_version}
+          unzip -q /tmp/${sdk_version} -d ${android_home}
+          rm /tmp/${sdk_version}
+
+          export ANDROID_HOME=${android_home}
+          export PATH=${ANDROID_HOME}/emulator:${ANDROID_HOME}/tools:${ANDROID_HOME}/tools/bin:${ANDROID_HOME}/platform-tools:${PATH}
+
+          mkdir ~/.android && echo '### User Sources for Android SDK Manager' > ~/.android/repositories.cfg
+          yes | sdkmanager --licenses && yes | sdkmanager --update
+
+          sdkmanager "tools" "platform-tools" "emulator"
+
+
+
+
+
+
+          # restore libtorch.so, libc10.so, includes/
+
+          # download and install android sdk (put in Android Docker Image afterwards)
+
+          # copy to android/pytorch_android/...
+          # run gradle buildRelease
+
+          echo "test ok"
+
   setup:
     docker:
       - image: circleci/python:3.7.3
     steps:
       - checkout
-      - run:
-          name: Ensure config is up to date
-          command: ./ensure-consistency.py
-          working_directory: .circleci
+      #- run:
+      #    name: Ensure config is up to date
+      #    command: ./ensure-consistency.py
+      #    working_directory: .circleci
       - run:
           name: Save commit message
           command: git log --format='%B' -n 1 HEAD > .circleci/scripts/COMMIT_MSG
@@ -2835,6 +2914,31 @@ workflows:
       - pytorch_linux_xenial_py3_clang5_android_ndk_r19c_build:
           requires:
             - setup
+
+#      - wip_shared_arm-v7_pytorch_linux_xenial_py3_clang5_android_ndk_r19c_build:
+#          requires:
+#            - setup
+
+#      - wip_shared_arm-v8_pytorch_linux_xenial_py3_clang5_android_ndk_r19c_build:
+#          requires:
+#            - setup
+
+      - wip_shared_x86_pytorch_linux_xenial_py3_clang5_android_ndk_r19c_build:
+          requires:
+            - setup
+
+      - wip_shared_x86_gradletest_pytorch_linux_xenial_py3_clang5_android_ndk_r19c_build:
+          requires:
+            - setup
+
+#      - wip_shared_x86_64_pytorch_linux_xenial_py3_clang5_android_ndk_r19c_build:
+#          requires:
+#            - setup
+
+#      - wip_pytorch_linux_xenial_py3_clang5_android_ndk_r19c_build:
+#          requires:
+#            - wip_shared_pytorch_linux_xenial_py3_clang5_android_ndk_r19c_build
+
       # Warning: indentation here matters!
 
       # Pytorch MacOS builds
