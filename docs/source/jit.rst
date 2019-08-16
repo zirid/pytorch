@@ -148,7 +148,7 @@ Migrating to PyTorch 1.2 Recursive Scripting API
 This section details the changes to TorchScript in PyTorch 1.2. If you are new to TorchScript you can
 skip this section. There are two main changes to the TorchScript API with PyTorch 1.2.
 
-1. ``torch.jit.script`` will now attempt to recursively compile functions,
+1. :func:`torch.jit.script <torch.jit.script>` will now attempt to recursively compile functions,
 methods, and classes that it encounters. Once you call ``torch.jit.script``,
 compilation is "opt-out", rather than "opt-in".
 
@@ -196,17 +196,26 @@ As a result of these changes, the following items are considered deprecated and 
 
 Modules
 ~~~~~~~
-When passed to the ``torch.jit.script`` function, a ``torch.nn.Module``\'s data is
+.. warning::
+
+    The :func:`@torch.jit.ignore <torch.jit.ignore>` annotation's behavior changes in
+    PyTorch 1.2. Before PyTorch 1.2 the @ignore decorator was used to make a function
+    or method callable from code that is exported. To get this functionality back,
+    use ``@torch.jit.ignore(drop_on_export=True)``. ``@torch.jit.ignore`` is now equivalent
+    to ``@torch.jit.ignore(drop_on_export=False)``. See :func:`@torch.jit.ignore <torch.jit.ignore>`
+    for details.
+
+When passed to the :func:`torch.jit.script <torch.jit.script>` function, a ``torch.nn.Module``\'s data is
 copied to a ``ScriptModule`` and the TorchScript compiler compiles the module.
 The module's ``forward`` is compiled by default. Methods called from ``forward`` are
 lazily compiled in the order they are used in ``forward``, as well as any
 ``@torch.jit.export`` methods.
 
-.. autofunction:::: export
+.. autofunction:: export
 
 Functions
 ~~~~~~~~~
-Functions don't change much, they can be decorated with ``@torch.jit.ignore`` if needed.
+Functions don't change much, they can be decorated with :func:`@torch.jit.ignore <torch.jit.ignore>` if needed.
 
 .. testcode::
 
@@ -230,11 +239,14 @@ Functions don't change much, they can be decorated with ``@torch.jit.ignore`` if
 
 TorchScript Classes
 ~~~~~~~~~~~~~~~~~~~
-Everything in a user defined `TorchScript Class`_ is exported by default, functions can be decorated with ``@torch.jit.ignore`` if needed.
+Everything in a user defined `TorchScript Class`_ is exported by default, functions
+can be decorated with :func:`@torch.jit.ignore <torch.jit.ignore>` if needed.
 
 Attributes
 ~~~~~~~~~~
-The TorchScript compiler needs to know the types of `module attributes`_. Most types can be inferred from the value of the member. Empty lists and dicts cannot have their types inferred and must have their types annotated with `PEP 526-style <https://www.python.org/dev/peps/pep-0526/#class-and-instance-variable-annotations>`_ class annotations.
+The TorchScript compiler needs to know the types of `module attributes`_. Most types
+can be inferred from the value of the member. Empty lists and dicts cannot have their
+types inferred and must have their types annotated with `PEP 526-style <https://www.python.org/dev/peps/pep-0526/#class-and-instance-variable-annotations>`_ class annotations.
 
 Old API:
 
@@ -429,10 +441,7 @@ Default Types
 
 By default, all parameters to a TorchScript function are assumed to be Tensor.
 To specify that an argument to a TorchScript function is another type, it is possible to use
-MyPy-style type annotations using the types listed above:
-
-Example:
-
+MyPy-style type annotations using the types listed above.
 
 .. testcode::
 
@@ -480,28 +489,55 @@ An empty list is assumed to be ``List[Tensor]`` and empty dicts
 ``Dict[str, Tensor]``. To instantiate an empty list or dict of other types,
 use `Python 3 type hints`_. If you are on Python 2, you can use ``torch.jit.annotate``.
 
+Example (type annotations for Python 3):
+
+.. testcode::
+
+    import torch
+    import torch.nn as nn
+    from typing import Dict, List, Tuple
+
+    class EmptyDataStructures(torch.nn.Module):
+        def __init__(self):
+            super(EmptyDataStructures, self).__init__()
+
+        def forward(self, x: torch.Tensor) -> Tuple[List[Tuple[int, float]], Dict[str, int]]:
+            # This annotates the list to be a `List[Tuple[int, float]]`
+            my_list: List[Tuple[int, float]] = []
+            for i in range(10):
+                my_list.append((i, x.item()))
+
+            my_dict: Dict[str, int] = {}
+            return my_list, my_dict
+
+    x = torch.jit.script(EmptyDataStructures())
+
+
 Example (``torch.jit.annotate`` for Python 2):
 
 .. testcode::
 
     import torch
-    from typing import List, Tuple
+    import torch.nn as nn
+    from typing import Dict, List, Tuple
 
-    class EmptyDataStructures(torch.jit.ScriptModule):
+    class EmptyDataStructures(torch.nn.Module):
         def __init__(self):
             super(EmptyDataStructures, self).__init__()
 
-        @torch.jit.script_method
         def forward(self, x):
             # type: (Tensor) -> Tuple[List[Tuple[int, float]], Dict[str, int]]
 
             # This annotates the list to be a `List[Tuple[int, float]]`
             my_list = torch.jit.annotate(List[Tuple[int, float]], [])
             for i in range(10):
-                my_list.append((x, x))
+                my_list.append((i, x.item()))
 
             my_dict = torch.jit.annotate(Dict[str, int], {})
             return my_list, my_dict
+
+    x = torch.jit.script(EmptyDataStructures())
+
 
 
 Optional Type Refinement
@@ -666,178 +702,182 @@ Literals
 
 List Construction
 """""""""""""""""
-    ::
+::
 
-        [3, 4]
-        []
-        [torch.rand(3), torch.rand(4)]
+    [3, 4]
+    []
+    [torch.rand(3), torch.rand(4)]
 
-    An empty list is assumed have type ``List[Tensor]``.
-    The types of other list literals are derived from the type of the members.
-    See `Default Types`_ for more details.
+An empty list is assumed have type ``List[Tensor]``.
+The types of other list literals are derived from the type of the members.
+See `Default Types`_ for more details.
 
 Tuple Construction
 """"""""""""""""""
-    ::
+::
 
-        (3, 4)
-        (3,)
+    (3, 4)
+    (3,)
 
 
 Dict Construction
 """""""""""""""""
-    ::
+::
 
-        {'hello': 3}
-        {}
-        {'a': torch.rand(3), 'b': torch.rand(4)}
+    {'hello': 3}
+    {}
+    {'a': torch.rand(3), 'b': torch.rand(4)}
 
-    An empty dict is assumed have type ``Dict[str, Tensor]``.
-    The types of other dict literals are derived from the type of the members.
-    See `Default Types`_ for more details.
+An empty dict is assumed have type ``Dict[str, Tensor]``.
+The types of other dict literals are derived from the type of the members.
+See `Default Types`_ for more details.
 
 Variables
 ^^^^^^^^^
-    See `Variable Resolution`_ for how variables are resolved.
+See `Variable Resolution`_ for how variables are resolved.
 
-    ::
+::
 
-        my_variable_name
+    my_variable_name
 
 Arithmetic Operators
 ^^^^^^^^^^^^^^^^^^^^
-    ::
+::
 
-        a + b
-        a - b
-        a * b
-        a / b
-        a ^ b
-        a @ b
+    a + b
+    a - b
+    a * b
+    a / b
+    a ^ b
+    a @ b
 
 Comparison Operators
 ^^^^^^^^^^^^^^^^^^^^
-    ::
+::
 
-        a == b
-        a != b
-        a < b
-        a > b
-        a <= b
-        a >= b
+    a == b
+    a != b
+    a < b
+    a > b
+    a <= b
+    a >= b
 
 Logical Operators
 ^^^^^^^^^^^^^^^^^
-    ::
+::
 
-        a and b
-        a or b
-        not b
+    a and b
+    a or b
+    not b
 
 Subscripts and Slicing
 ^^^^^^^^^^^^^^^^^^^^^^
-    ::
+::
 
-        t[0]
-        t[-1]
-        t[0:2]
-        t[1:]
-        t[:1]
-        t[:]
-        t[0, 1]
-        t[0, 1:2]
-        t[0, :1]
-        t[-1, 1:, 0]
-        t[1:, -1, 0]
-        t[i:j, i]
+    t[0]
+    t[-1]
+    t[0:2]
+    t[1:]
+    t[:1]
+    t[:]
+    t[0, 1]
+    t[0, 1:2]
+    t[0, :1]
+    t[-1, 1:, 0]
+    t[1:, -1, 0]
+    t[i:j, i]
 
 Function Calls
 ^^^^^^^^^^^^^^
-    Calls to built-in functions: ``torch.rand(3, dtype=torch.int)``
+Calls to `builtin functions`_
 
-    Calls to other script functions:
+::
 
-    .. testcode::
+    torch.rand(3, dtype=torch.int)
 
-        import torch
+Calls to other script functions:
 
-        @torch.jit.script
-        def foo(x):
-            return x + 1
+.. testcode::
 
-        @torch.jit.script
-        def bar(x):
-            return foo(x)
+    import torch
+
+    @torch.jit.script
+    def foo(x):
+        return x + 1
+
+    @torch.jit.script
+    def bar(x):
+        return foo(x)
 
 Method Calls
 ^^^^^^^^^^^^
-    Calls to methods of builtin types like tensor: ``x.mm(y)``
+Calls to methods of builtin types like tensor: ``x.mm(y)``
 
-    On modules, methods must be compiled before they can be called. The TorchScript
-    compiler recursively compiles methods it sees when compiling other methods. By default,
-    compilation starts on the ``forward`` method. Any methods called by ``forward`` will
-    be compiled, and any methods called by those methods, and so on. To start compilation at
-    a method other than ``forward``, use the ``@torch.jit.export`` decorator
-    (``forward`` implicitly is marked ``@torch.jit.export``).
+On modules, methods must be compiled before they can be called. The TorchScript
+compiler recursively compiles methods it sees when compiling other methods. By default,
+compilation starts on the ``forward`` method. Any methods called by ``forward`` will
+be compiled, and any methods called by those methods, and so on. To start compilation at
+a method other than ``forward``, use the :func:`@torch.jit.export <torch.jit.export>` decorator
+(``forward`` implicitly is marked ``@torch.jit.export``).
 
-    Calling a submodule directly (e.g. ``self.resnet(input)``) is equivalent to
-    calling its ``forward`` method (e.g. ``self.resnet.forward(input)``)
+Calling a submodule directly (e.g. ``self.resnet(input)``) is equivalent to
+calling its ``forward`` method (e.g. ``self.resnet.forward(input)``).
 
-    .. testcode::
+.. testcode::
 
-        import torch
-        import torch.nn as nn
-        import torchvision
+    import torch
+    import torch.nn as nn
+    import torchvision
 
-        class MyModule(nn.Module):
-            def __init__(self):
-                super(MyModule, self).__init__()
-                means = torch.tensor([103.939, 116.779, 123.68])
-                self.means = torch.nn.Parameter(means.resize_(1, 3, 1, 1))
-                resnet = torchvision.models.resnet18()
-                self.resnet = torch.jit.trace(resnet, torch.rand(1, 3, 224, 224))
+    class MyModule(nn.Module):
+        def __init__(self):
+            super(MyModule, self).__init__()
+            means = torch.tensor([103.939, 116.779, 123.68])
+            self.means = torch.nn.Parameter(means.resize_(1, 3, 1, 1))
+            resnet = torchvision.models.resnet18()
+            self.resnet = torch.jit.trace(resnet, torch.rand(1, 3, 224, 224))
 
-            def helper(self, input):
-                return self.resnet(input - self.means)
+        def helper(self, input):
+            return self.resnet(input - self.means)
 
-            def forward(self, input):
-                return self.helper(input)
+        def forward(self, input):
+            return self.helper(input)
 
-            # Since nothing in the model calls `top_level_method`, the compiler
-            # must be explicitly told to compile this method
-            @torch.jit.export
-            def top_level_method(self, input):
-                return self.other_helper(input)
+        # Since nothing in the model calls `top_level_method`, the compiler
+        # must be explicitly told to compile this method
+        @torch.jit.export
+        def top_level_method(self, input):
+            return self.other_helper(input)
 
-            def other_helper(self, input):
-                return input + 10
+        def other_helper(self, input):
+            return input + 10
 
-        # `my_script_module` will have the compiled methods `forward`, `helper`,
-        # `top_level_method`, and `other_helper`
-        my_script_module = torch.jit.script(MyModule())
+    # `my_script_module` will have the compiled methods `forward`, `helper`,
+    # `top_level_method`, and `other_helper`
+    my_script_module = torch.jit.script(MyModule())
 
 
 Ternary Expressions
 ^^^^^^^^^^^^^^^^^^^
-    ::
+::
 
-        x if x > y else y
+    x if x > y else y
 
 Casts
 ^^^^^
-    ::
+::
 
-        float(ten)
-        int(3.5)
-        bool(ten)
-        str(2)``
+    float(ten)
+    int(3.5)
+    bool(ten)
+    str(2)``
 
 Accessing Module Parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    ::
+::
 
-        self.my_parameter
-        self.my_submodule.my_parameter
+    self.my_parameter
+    self.my_submodule.my_parameter
 
 
 Statements
@@ -846,118 +886,123 @@ Statements
 TorchScript supports the following types of statements:
 
 Simple Assignments
+^^^^^^^^^^^^^^^^^^
+::
 
-    ::
-
-        a = b
-        a += b # short-hand for a = a + b, does not operate in-place on a
-        a -= b
+    a = b
+    a += b # short-hand for a = a + b, does not operate in-place on a
+    a -= b
 
 Pattern Matching Assignments
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+::
 
-    ::
-
-        a, b = tuple_or_list
-        a, b, *c = a_tuple
+    a, b = tuple_or_list
+    a, b, *c = a_tuple
 
 Print Statements
+^^^^^^^^^^^^^^^^
+::
 
-    ::
-
-        print("the result of an add:", a + b)
+    print("the result of an add:", a + b)
 
 If Statements
+^^^^^^^^^^^^^
+::
 
-    ::
-
-        if a < 4:
-            r = -a
-        elif a < 3:
-            r = a + a
-        else:
-            r = 3 * a
+    if a < 4:
+        r = -a
+    elif a < 3:
+        r = a + a
+    else:
+        r = 3 * a
 
 In addition to bools, floats, ints, and Tensors can be used in a conditional
 and will be implicitly casted to a boolean.
 
 While Loops
+^^^^^^^^^^^
+::
 
-  ::
-
-      a = 0
-      while a < 4:
-          print(a)
-          a += 1
-
-
-For loops with ``range``
-
-    ::
-
-        x = 0
-        for i in range(10):
-            x *= i
-
-For loops over tuples:
-
-    These unroll the loop, generating a body for
-    each member of the tuple. The body must type-check correctly for each member.
-
-    ::
-
-        tup = (3, torch.rand(4))
-        for x in tup:
-            print(x)
+    a = 0
+    while a < 4:
+        print(a)
+        a += 1
 
 
-For loops over constant ``torch.nn.ModuleList``
+For loops with range
+^^^^^^^^^^^^^^^^^^^^
+::
 
-      .. testcode::
+    x = 0
+    for i in range(10):
+        x *= i
 
-          class SubModule(torch.jit.ScriptModule):
-              def __init__(self):
-                  super(Sub, self).__init__()
-                  self.weight = nn.Parameter(torch.randn(2))
+For loops over tuples
+^^^^^^^^^^^^^^^^^^^^^
+These unroll the loop, generating a body for
+each member of the tuple. The body must type-check correctly for each member.
 
-              @torch.jit.script_method
-              def forward(self, input):
-                  return self.weight + input
+::
 
-          class MyModule(torch.jit.ScriptModule):
-              __constants__ = ['mods']
+    tup = (3, torch.rand(4))
+    for x in tup:
+        print(x)
 
-              def __init__(self):
-                  super(MyModule, self).__init__()
-                  self.mods = torch.nn.ModuleList([SubModule() for i in range(10)])
 
-              @torch.jit.script_method
-              def forward(self, v):
-                  for module in self.mods:
-                      v = m(v)
-                  return v
+For loops over constant nn.ModuleList
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-      .. note::
-          To use a ``nn.ModuleList`` inside a compiled method, it must be marked
-          constant by adding the name of the attribute to the ``__constants__``
-          list for the type. For loops over a ``nn.ModuleList`` will unroll the body of the
-          loop at compile time, with each member of the constant module list.
+To use a ``nn.ModuleList`` inside a compiled method, it must be marked
+constant by adding the name of the attribute to the ``__constants__``
+list for the type. For loops over a ``nn.ModuleList`` will unroll the body of the
+loop at compile time, with each member of the constant module list.
+
+.. TODO: enable testcode when https://github.com/pytorch/pytorch/pull/24412 lands
+
+::
+
+    class SubModule(torch.nn.Module):
+        def __init__(self):
+            super(SubModule, self).__init__()
+            self.weight = nn.Parameter(torch.randn(2))
+
+        def forward(self, input):
+            return self.weight + input
+
+    class MyModule(torch.nn.Module):
+        __constants__ = ['mods']
+
+        def __init__(self):
+            super(MyModule, self).__init__()
+            self.mods = torch.nn.ModuleList([SubModule() for i in range(10)])
+
+        def forward(self, v):
+            for module in self.mods:
+                v = module(v)
+            return v
+
+
+    m = torch.jit.script(MyModule())
+
+
 
 Break and Continue
+^^^^^^^^^^^^^^^^^^
+::
 
-    ::
-
-        for i in range(5):
-          if i == 1:
-            continue
-          if i == 3:
-            break
-          print(i)
+    for i in range(5):
+        if i == 1:
+        continue
+        if i == 3:
+        break
+        print(i)
 
 Return
+^^^^^^
+::
 
-    ::
-
-        return a, b
+    return a, b
 
 Variable Resolution
 ~~~~~~~~~~~~~~~~~~~
@@ -1225,26 +1270,29 @@ Python syntax. For example:
                 rv = rv + 1.0
         return rv
 
-    print(foo.code.strip())
+    print(foo.code)
+
+.. testoutput::
+    :hide:
+
+    ...
 
 A ``ScriptModule`` with a single ``forward`` method will have an attribute
 ``code``, which you can use to inspect the ``ScriptModule``'s code.
 If the ``ScriptModule`` has more than one method, you will need to access
 ``.code`` on the method itself and not the module. We can inspect the
 code of a method named ``bar`` on a ScriptModule by accessing ``.bar.code``.
-The example above produces this output:
-
-.. testoutput::
+The example above produces this output: ::
 
     def foo(len: int) -> Tensor:
         rv = torch.zeros([3, 4], dtype=None, layout=None, device=None, pin_memory=None)
         rv0 = rv
         for i in range(len):
-        if torch.lt(i, 10):
-            rv1 = torch.sub(rv0, 1., 1)
-        else:
-            rv1 = torch.add(rv0, 1., 1)
-        rv0 = rv1
+            if torch.lt(i, 10):
+                rv1 = torch.sub(rv0, 1., 1)
+            else:
+                rv1 = torch.add(rv0, 1., 1)
+            rv0 = rv1
         return rv0
 
 This is TorchScript's compilation of the code for the ``forward`` method.
@@ -1269,10 +1317,10 @@ including control flow operators for loops and conditionals. As an example:
         # type: (int) -> torch.Tensor
         rv = torch.zeros(3, 4)
         for i in range(len):
-        if i < 10:
-            rv = rv - 1.0
-        else:
-            rv = rv + 1.0
+            if i < 10:
+                rv = rv - 1.0
+            else:
+                rv = rv + 1.0
         return rv
 
     print(foo.graph)
