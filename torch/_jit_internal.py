@@ -222,15 +222,18 @@ def ignore(drop_on_export=False):
     This decorator indicates to the compiler that a function or method should
     be ignored and left as a Python function.
 
-    With `drop_on_export=False`, calls to this function will
-    prevent saving a TorchScript model since calls to Python functions cannot
-    be saved.
+    Arguments:
 
-    With `drop_on_export=True`, any calls to this function from other
-    TorchScript code will be replaced with a `raise` when the model is saved.
-    This allows you to leave code in your TorchScript model that is only ever
-    run when the Python interpreter is present, but not run after you save
-    and load your model.
+        drop_on_export (bool):  When ``False``, calls to this function will
+                                that will be run with ``example_inputs``.
+                                arguments and returns to ``func`` must be tensors
+                                or (possibly nested) tuples that
+                                contain tensors. When ``True``, any calls to
+                                this function from other TorchScript code will be replaced
+                                with a `raise` when the model is saved.
+                                This allows you to leave code in your TorchScript model that is only ever
+                                run when the Python interpreter is present, but not run after you save
+                                and load your model.
 
     Example (using ``@torch.jit.ignore`` on a method)::
 

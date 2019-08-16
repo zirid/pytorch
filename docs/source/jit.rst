@@ -393,6 +393,7 @@ Instead, TorchScript focuses specifically on the features of Python that are
 needed to represent neural network models in PyTorch.
 
 .. _types:
+.. _supported type:
 
 Types
 ~~~~~
@@ -552,10 +553,11 @@ that are not explicitly written.
 The ``None`` check must be within the if-statement's condition; assigning
 a ``None`` check to a variable and using it in the if-statement's condition will
 not refine the types of variables in the check.
-Only local variables will be refined, an attribute like ``self.x`` will not (see example).
+Only local variables will be refined, an attribute like ``self.x`` will not and must assigned to
+a local variable to be refined.
 
 
-Example:
+Example (refining types on parameters and locals):
 
 .. testcode::
 
@@ -596,7 +598,7 @@ Example:
 
 TorchScript Classes
 ^^^^^^^^^^^^^^^^^^^
-Python classes can be used in TorchScript if they are annotated with ``@torch.jit.script``,
+Python classes can be used in TorchScript if they are annotated with :func:`@torch.jit.script <torch.jit.script>`,
 similar to how you would declare a TorchScript function:
 
 .. testcode::
@@ -686,7 +688,7 @@ Types produced by :func:`collections.namedtuple <collections.namedtuple>` can be
 Expressions
 ~~~~~~~~~~~
 
-The following Python Expressions are supported
+The following Python Expressions are supported.
 
 Literals
 ^^^^^^^^
@@ -702,15 +704,17 @@ Literals
 
 List Construction
 """""""""""""""""
+An empty list is assumed have type ``List[Tensor]``.
+The types of other list literals are derived from the type of the members.
+See `Default Types`_ for more details.
+
 ::
 
     [3, 4]
     []
     [torch.rand(3), torch.rand(4)]
 
-An empty list is assumed have type ``List[Tensor]``.
-The types of other list literals are derived from the type of the members.
-See `Default Types`_ for more details.
+
 
 Tuple Construction
 """"""""""""""""""
@@ -722,15 +726,16 @@ Tuple Construction
 
 Dict Construction
 """""""""""""""""
+An empty dict is assumed have type ``Dict[str, Tensor]``.
+The types of other dict literals are derived from the type of the members.
+See `Default Types`_ for more details.
+
 ::
 
     {'hello': 3}
     {}
     {'a': torch.rand(3), 'b': torch.rand(4)}
 
-An empty dict is assumed have type ``Dict[str, Tensor]``.
-The types of other dict literals are derived from the type of the members.
-See `Default Types`_ for more details.
 
 Variables
 ^^^^^^^^^
@@ -1595,35 +1600,41 @@ best practices?
 
 Q: How do I store attributes on a ``ScriptModule``?
 
-    Say we have a model like: ::
+    Say we have a model like:
 
-      class Model(torch.jit.ScriptModule):
-        def __init__(self):
-          super(Model, self).__init__()
-          self.x = 2
+    .. testcode::
 
-        @torch.jit.script_method
-        def forward(self):
-          return self.x
+        class Model(nn.Module):
+            def __init__(self):
+                super(Model, self).__init__()
+                self.x = 2
+
+            def forward(self):
+                return self.x
+
+        m = torch.jit.script(Model())
+
+
 
     If ``Model`` is instantiated it will result in a compilation error
     since the compiler doesn't know about ``x``. There are 4 ways to inform the
     compiler of attributes on ``ScriptModule``:
 
-    1. ``nn.Parameter`` - values wrapped in ``nn.Parameter`` will work as they
+    1. ``nn.Parameter`` - Values wrapped in ``nn.Parameter`` will work as they
     do on ``nn.Module``\s
 
-    2. ``register_buffer`` - values wrapped in ``register_buffer`` will work as
-    they do on ``nn.Module``\s
+    2. ``register_buffer`` - Values wrapped in ``register_buffer`` will work as
+    they do on ``nn.Module``\s. This is equivalent to an attribute (see 4) of type
+    ``Tensor``.
 
-    3. ``__constants__`` - adding a list called ``__constants__`` at the
-    class definition level will mark the contained names as constants. Constants
-    are saved directly in the code of the model. See
-    `Python-defined Constants`_.
+    3. Constants - Annotating a class member as ``Final`` (or adding it to a list called
+    ``__constants__`` at the class definition level) will mark the contained names
+    as constants. Constants are saved directly in the code of the model. See
+    `Python-defined Constants`_ for details.
 
-    4. ``torch.jit.Attribute`` - values wrapped in ``torch.jit.Attribute`` can
-    be any ``TorchScript`` type, be mutated and are saved outside of the code of
-    the model. See `Module Attributes`_.
+    4. Attributes - Values that are a `supported type`_ can be added as mutable
+    attributes. Most types can be inferred but some may need to be specified, see
+    `Module Attributes`_ for details.
 
 
 
@@ -1631,29 +1642,11 @@ Q: I would like to trace module's method but I keep getting this error:
 
 ``RuntimeError: Cannot insert a Tensor that requires grad as a constant. Consider making it a parameter or input, or detaching the gradient``
 
-    This error usually means that, the method you are tracing, uses module's parameters and
-    you are passing module's method instead of a module instance (e.g. ``my_module_instance.forward`` vs ``my_module_instance``).
-      - Invoking ``trace`` with module's method captures module parameters (which may require gradients) as **constants**.
+    This error usually means that the method you are tracing uses a module's parameters and
+    you are passing the module's method instead of the module instance (e.g. ``my_module_instance.forward`` vs ``my_module_instance``).
+      - Invoking ``trace`` with a module's method captures module parameters (which may require gradients) as **constants**.
       - On the other hand, invoking ``trace`` with module's instance (e.g. ``my_module``) creates a new module and correctly copies parameters into the new module, so they can accumulate gradients if required.
-    Given that ``trace`` treats ``my_module_instance.forward`` as a standalone function, it also means there is **not** currently a way to trace
-    arbitrary methods in the module except for ``forward`` that use module's parameters.
-    Version **1.1.1** will add a new API ``trace_module`` that will allow users to trace any method in the module and more than one method ::
 
-        class Net(nn.Module):
-            def __init__(self):
-                super(Net, self).__init__()
-                self.conv = nn.Conv2d(1, 1, 3)
-
-            def forward(self, x):
-                return self.conv(x)
-
-            def weighted_kernel_sum(self, weight):
-                return weight * self.conv.weight
-
-        example_weight = torch.rand(1, 1, 3, 3)
-        example_forward_input = torch.rand(1, 1, 3, 3)
-        n = Net()
-        inputs = {'forward' : example_forward_input, 'weighted_kernel_sum' : example_weight}
-        module = torch.jit.trace_module(n, inputs)
+    To trace a specific method on a module, see :func:`torch.jit.trace_module <torch.jit.trace_module>`
 
 
