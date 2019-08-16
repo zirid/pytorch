@@ -23,6 +23,8 @@ class FloatFunctional(torch.nn.Module):
     Valid operation names:
         - add
         - cat
+
+    TODO: The overloads will be landed ONLY after #24259 lands
     """
     def __init__(self):
         super(FloatFunctional, self).__init__()
@@ -32,7 +34,7 @@ class FloatFunctional(torch.nn.Module):
         raise RuntimeError("FloatFunctional is not intended to use the " +
                            "'forward'. Please use the underlying operation")
 
-    r"""Operation equivalent to ``torch.add``"""
+    r"""Operation equivalent to ``torch.add(Tensor, Tensor)``"""
     def add(self, x, y):
         # type: (Tensor, Tensor) -> Tensor
         r = torch.add(x, y)
@@ -40,9 +42,25 @@ class FloatFunctional(torch.nn.Module):
         self.observer(r)
         return r
 
-    r"""Operation equivalent to ``torch.mul``"""
+    r"""Operation equivalent to ``torch.add(Tensor, float)``"""
+    def add_scalar(self, x, y):
+        # type: (Tensor, float) -> Tensor
+        r = torch.add(x, y)
+        # TODO: Fix for QAT.
+        self.observer(r)
+        return r
+
+    r"""Operation equivalent to ``torch.mul(Tensor, Tensor)``"""
     def mul(self, x, y):
         # type: (Tensor, Tensor) -> Tensor
+        r = torch.mul(x, y)
+        # TODO: Fix for QAT.
+        self.observer(r)
+        return r
+
+    r"""Operation equivalent to ``torch.mul(Tensor, float)``"""
+    def mul_scalar(self, x, y):
+        # type: (Tensor, float) -> Tensor
         r = torch.mul(x, y)
         # TODO: Fix for QAT.
         self.observer(r)
@@ -77,7 +95,6 @@ class QFunctional(torch.nn.Module):
     Valid operation names:
         - add
         - cat
-
     """
     def __init__(self):
         super(QFunctional, self).__init__()
@@ -88,13 +105,27 @@ class QFunctional(torch.nn.Module):
 
     r"""Operation equivalent to ``torch.ops.quantized.add``"""
     def add(self, x, y):
+        # type: (Tensor, Tensor) -> Tensor
         return ops.quantized.add(x, y, scale=self.scale,
                                  zero_point=self.zero_point)
 
-    r"""Operation equivalent to ``torch.ops.quantized.mul``"""
+    r"""Operation equivalent to ``torch.ops.quantized.add(Tensor, float)``"""
+    def add_scalar(self, x, y):
+        # type: (Tensor, float) -> Tensor
+        return ops.quantized.add_scalar(x, y, scale=self.scale,
+                                        zero_point=self.zero_point)
+
+    r"""Operation equivalent to ``torch.ops.quantized.mul(Tensor, Tensor)``"""
     def mul(self, x, y):
+        # type: (Tensor, Tensor) -> Tensor
         return ops.quantized.mul(x, y, scale=self.scale,
                                  zero_point=self.zero_point)
+
+    r"""Operation equivalent to ``torch.ops.quantized.mul(Tensor, float)``"""
+    def mul_scalar(self, x, y):
+        # type: (Tensor, float) -> Tensor
+        return ops.quantized.mul_scalar(x, y, scale=self.scale,
+                                        zero_point=self.zero_point)
 
     r"""Operation equivalent to ``torch.ops.quantized.cat``"""
     def cat(self, x, dim=0):
