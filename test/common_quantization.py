@@ -11,6 +11,7 @@ import hypothesis
 import io
 import torch
 import torch.nn as nn
+import torch.nn._intrinsic as nni
 import torch.nn.quantized as nnq
 import torch.nn.quantized.dynamic as nnqd
 from common_utils import TestCase
@@ -454,15 +455,20 @@ class ModForWrapping(torch.nn.Module):
         if quantized:
             self.mycat = nnq.QFunctional()
             self.myadd = nnq.QFunctional()
+            self.my_intrinsic_add = nni.quantized.modules.AddReLU()
         else:
             self.mycat = nnq.FloatFunctional()
             self.myadd = nnq.FloatFunctional()
+            self.my_intrinsic_add = nni.AddReLU()
+
             self.mycat.observer = DummyObserver()
             self.myadd.observer = DummyObserver()
+            self.my_intrinsic_add.observer = DummyObserver()
 
     def forward(self, x):
         y = self.mycat.cat([x, x, x])
         z = self.myadd.add(y, y)
+        z = self.my_intrinsic_add(z, z)
         return z
 
     @classmethod
@@ -470,4 +476,5 @@ class ModForWrapping(torch.nn.Module):
         new_mod = cls(quantized=True)
         new_mod.mycat = new_mod.mycat.from_float(mod.mycat)
         new_mod.myadd = new_mod.myadd.from_float(mod.myadd)
+        new_mod.my_intrinsic_add = new_mod.my_intrinsic_add.from_float(mod.my_intrinsic_add)
         return new_mod
