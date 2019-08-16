@@ -750,7 +750,14 @@ void initJitScriptBindings(PyObject* module) {
         auto new_def = implementation_def.withDecl(overload_decl);
         return script_compile_function(name, new_def, defaults, std::move(rcb));
       });
-
+  m.def(
+      "_replace_overloaded_method_decl",
+      [](const Decl& overload_decl,
+         const Def& implementation_def,
+         const std::string& new_name) {
+        checkOverloadDecl(overload_decl, implementation_def.decl());
+        return implementation_def.withDecl(overload_decl).withName(new_name);
+      });
   m.def(
       "_create_function_from_trace",
       [](std::string qualname,
@@ -846,7 +853,7 @@ void initJitScriptBindings(PyObject* module) {
          const std::vector<at::Tensor>& constant_table) {
         import_functions(
             c10::nullopt,
-            cu,
+            std::move(cu),
             std::make_shared<Source>(src),
             constant_table,
             nullptr,
